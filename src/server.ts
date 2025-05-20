@@ -1,10 +1,10 @@
-import express, { Application, Request, Response } from 'express';
+import express, { Request, Response } from 'express';
 import bodyParser from 'body-parser';
 import { randomUUID } from 'crypto';
-import { GoogleGenerativeAI, Content } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import type { Content } from '@google/generative-ai';
 
-// 初始化 express 应用
-const app: Application = express();
+const app = express(); // 不要加 Application 类型！
 app.use(bodyParser.json());
 
 // Google API-Key
@@ -14,7 +14,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const MODEL_ID = 'gemini-2.5-pro-preview-05-06';
 
 // GET /v1/models
-app.get('/v1/models', (_req: Request, res: Response) => {
+app.get('/v1/models', (req: Request, res: Response) => {
   res.json({
     object: 'list',
     data: [
@@ -34,29 +34,28 @@ app.post('/v1/chat/completions', async (req: Request, res: Response) => {
     messages,
     stream = false,
     temperature = 0.7,
-  }: {
+  } = req.body as {
     messages: { role: string; content: string }[];
     stream?: boolean;
     temperature?: number;
-  } = req.body;
+  };
 
   // OpenAI → Gemini contents
   const contents: Content[] = messages.map(({ role, content }) => ({
-    role: (role === 'assistant' ? 'model' : role) as 'user' | 'model' | 'function',
+    role: role === 'assistant' ? 'model' : (role as 'user' | 'model' | 'function'),
     parts: [{ text: content }],
   }));
 
   const model = genAI.getGenerativeModel({ model: MODEL_ID });
 
-  // 流式输出
+  // 流式分支
   if (stream) {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=UTF-8',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
     });
-
-    // @ts-ignore: flush 在 node http.ServerResponse 存在，但 express 类型未声明
+    // @ts-ignore
     res.flush?.();
 
     const itr = await model.generateContentStream({
@@ -79,16 +78,17 @@ app.post('/v1/chat/completions', async (req: Request, res: Response) => {
               finish_reason: null,
             },
           ],
-        })}\n\n`
+        })}\n\n`,
       );
       // @ts-ignore
       res.flush?.();
     }
+
     res.write('data: [DONE]\n\n');
     return res.end();
   }
 
-  // 非流式输出
+  // 非流式分支
   const result = await model.generateContent({
     contents,
     generationConfig: { temperature },
@@ -109,7 +109,6 @@ app.post('/v1/chat/completions', async (req: Request, res: Response) => {
   });
 });
 
-// 启动监听
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`API up on :${PORT}`);
