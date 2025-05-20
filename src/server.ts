@@ -8,9 +8,7 @@ const app = express();
 app.use(bodyParser.json());
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-genAI.listModels().then((models: any) => {
-  console.log('Available models:', models.models.map((m: any) => m.name));
-}).catch(console.error);
+const MODEL_ID = 'gemini-1.5-pro-latest';
 
 // GET /v1/models
 app.get('/v1/models', (req, res) => {
