@@ -1,20 +1,17 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
 import bodyParser from 'body-parser';
 import { randomUUID } from 'crypto';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { Content } from '@google/generative-ai';
 
-const app = express(); // 不要加 Application 类型！
+const app = express();
 app.use(bodyParser.json());
 
-// Google API-Key
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-
-// 预览模型 ID
 const MODEL_ID = 'gemini-2.5-pro-preview-05-06';
 
 // GET /v1/models
-app.get('/v1/models', (req: Request, res: Response) => {
+app.get('/v1/models', (req, res) => {
   res.json({
     object: 'list',
     data: [
@@ -29,7 +26,7 @@ app.get('/v1/models', (req: Request, res: Response) => {
 });
 
 // POST /v1/chat/completions
-app.post('/v1/chat/completions', async (req: Request, res: Response) => {
+app.post('/v1/chat/completions', async (req, res) => {
   const {
     messages,
     stream = false,
@@ -40,7 +37,6 @@ app.post('/v1/chat/completions', async (req: Request, res: Response) => {
     temperature?: number;
   };
 
-  // OpenAI → Gemini contents
   const contents: Content[] = messages.map(({ role, content }) => ({
     role: role === 'assistant' ? 'model' : (role as 'user' | 'model' | 'function'),
     parts: [{ text: content }],
@@ -48,7 +44,6 @@ app.post('/v1/chat/completions', async (req: Request, res: Response) => {
 
   const model = genAI.getGenerativeModel({ model: MODEL_ID });
 
-  // 流式分支
   if (stream) {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=UTF-8',
@@ -88,7 +83,6 @@ app.post('/v1/chat/completions', async (req: Request, res: Response) => {
     return res.end();
   }
 
-  // 非流式分支
   const result = await model.generateContent({
     contents,
     generationConfig: { temperature },
